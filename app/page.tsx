@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { MessageList } from "@/components/message-list";
-import { MessageDialog } from "@/components/message-dialog";
+import { SendMessageDrawer } from "@/components/message-dialog";
 
 const messages = [
   "Share your heartfelt messages with someone special",
@@ -75,10 +75,10 @@ export default function Home() {
   }, [emoji]);
 
   return (
-    <main className="relative h-screen w-full overflow-hidden bg-gradient-to-b from-blue-100 to-white dark:from-gray-900 dark:to-gray-800">
+    <main className="relative h-full w-full mb-32 md:mb-4 overflow-hidden bg-gradient-to-b from-[#ff69b498] to-white dark:from-gray-900 dark:to-gray-800">
       <div className="mx-auto">
-        <div className="text-center mb-12 fixed z-10 top-8 md:top-16 left-0 right-0">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4 flex items-center justify-center gap-2">
+        <div className="text-center mt-12">
+          <h1 className="text-4xl font-bold text-white mb-4 flex items-center justify-center gap-2">
             Say 4 Me{" "}
             <motion.span
               key={emoji}
@@ -92,7 +92,7 @@ export default function Home() {
           </h1>
           <motion.p
             key={index}
-            className="text-lg text-gray-600 dark:text-gray-300 mb-8 h-4"
+            className="text-lg text-white dark:text-gray-300 mb-8 h-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -102,7 +102,7 @@ export default function Home() {
           </motion.p>
         </div>
           <MessageList />
-        <MessageDialog />
+          <SendMessageDrawer />
       </div>
     </main>
   );

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 import { sendMessageToClients } from "./subscribe";
+import { v4 as uuidv4 } from "uuid";
 
 const MONGODB_URI = process.env.MONGODB_URI!;
 const OLLAMA_API_URL = process.env.OLLAMA_API_URL!;
@@ -18,10 +19,11 @@ async function connectToDatabase() {
 // Force Next.js API route to be dynamic
 export const dynamic = "force-dynamic";
 
+// **Message Screening Function**
 async function screenMessage(message: string) {
   try {
-    console.log(`sending message to ${OLLAMA_API_URL}/api/generate with model ${MODEL} and prompt ${message}`);
-    
+    console.log(`Sending message to ${OLLAMA_API_URL}/api/generate with model ${MODEL} and prompt: ${message}`);
+
     const response = await fetch(`${OLLAMA_API_URL}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -35,9 +37,8 @@ async function screenMessage(message: string) {
     if (!response.ok) throw new Error("AI screening failed");
 
     const data = await response.json();
+    console.log(`Screening response: ${data.response}`);
 
-    console.log(`screening response of ${message} => ${data.response}`);
-    
     return data.response.toLowerCase().trim().includes("approved");
   } catch (error) {
     console.error("Error screening message:", error);
@@ -45,14 +46,50 @@ async function screenMessage(message: string) {
   }
 }
 
+// **GET (Lazy Fetching & Pagination)**
+export async function GET(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const sessionId = url.searchParams.get("sessionId");
+
+    const db = await connectToDatabase();
+    const query = sessionId ? { sessionId } : {};
+
+    const messages = await db
+      .collection("messages")
+      .find(query)
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    return NextResponse.json(
+      messages.map((msg) => ({
+        id: msg._id.toString(),
+        recipient: msg.recipient,
+        message: msg.message,
+        sessionId: msg.sessionId,
+        viewerCount: msg.viewerCount || 0, // Default to 0
+      }))
+    );
+  } catch (error) {
+    console.error("Error fetching messages:", error);
+    return NextResponse.json({ error: "Failed to fetch messages" }, { status: 500 });
+  }
+}
+
+// **POST (Send Message with Screening)**
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const recipient = formData.get("recipient")?.toString();
     const message = formData.get("message")?.toString();
+    let sessionId = formData.get("sessionId")?.toString();
 
     if (!recipient || !message) {
       return NextResponse.json({ error: "Recipient and message required" }, { status: 400 });
+    }
+
+    if (!sessionId) {
+      sessionId = uuidv4();
     }
 
     const isApproved = await screenMessage(message);
@@ -65,6 +102,8 @@ export async function POST(request: Request) {
     const result = await db.collection("messages").insertOne({
       recipient,
       message,
+      sessionId,
+      viewerCount: 0,
       createdAt: new Date(),
     });
 
@@ -72,34 +111,42 @@ export async function POST(request: Request) {
       id: result.insertedId.toString(),
       recipient,
       message,
-    }
+      sessionId,
+      viewerCount: 0,
+    };
 
     sendMessageToClients(messageData);
 
-    return NextResponse.json(
-      messageData,
-      { status: 201 }
-    );
+    return NextResponse.json(messageData, { status: 201 });
   } catch (error) {
     console.error("Error processing message:", error);
     return NextResponse.json({ error: "Failed to process message" }, { status: 500 });
   }
 }
 
-export async function GET() {
+// **PATCH (Increment Viewer Count)**
+export async function PATCH(request: Request) {
   try {
-    const db = await connectToDatabase();
-    const messages = await db.collection("messages").find({}).sort({ createdAt: -1 }).limit(50).toArray();
+    const { id } = await request.json();
 
-    return NextResponse.json(messages.map((msg) => ({
-      id: msg._id.toString(),
-      recipient: msg.recipient,
-      message: msg.message,
-      image: msg.image,
-      voice: msg.voice,
-    })));
+    if (!id) {
+      return NextResponse.json({ error: "Message ID required" }, { status: 400 });
+    }
+
+    const db = await connectToDatabase();
+    const message = await db.collection("messages").findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      { $inc: { viewerCount: 1 } },
+      { returnDocument: "after" }
+    );
+
+    if (!message || !message.value) {
+      return NextResponse.json({ error: "Message not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ viewerCount: message.value.viewerCount });
   } catch (error) {
-    console.error("Error fetching messages:", error);
-    return NextResponse.json({ error: "Failed to fetch messages" }, { status: 500 });
+    console.error("Error updating viewer count:", error);
+    return NextResponse.json({ error: "Failed to update viewer count" }, { status: 500 });
   }
 }

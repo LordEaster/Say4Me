@@ -1,208 +1,152 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { MailOpen, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { v4 as uuidv4 } from "uuid";
 import { motion } from "framer-motion";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Mail } from "lucide-react";
-import "./styles.css"; // Import the envelope styles
+import "./styles.css"; // Ensure envelope styles are present
 
 interface Message {
   id: string;
   recipient: string;
   message: string;
-  image?: string;
-  voice?: string;
+  sessionId?: string;
+  viewerCount?: number;
 }
 
 export function MessageList() {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [activeMessages, setActiveMessages] = useState<Message[]>([]);
-  const [messageSettings, setMessageSettings] = useState<Record<string, { speed: number; top: number }>>({});
-  const [maxMessagesOnScreen, setMaxMessagesOnScreen] = useState(3); // Default for mobile
+  const [filteredMessages, setFilteredMessages] = useState<Message[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
-
-  const messageHeight = 15; // Spacing to prevent collisions
-
-  // Detect screen size and adjust message limit
-  useEffect(() => {
-    const updateMessageLimit = () => {
-      if (window.innerWidth >= 1024) {
-        setMaxMessagesOnScreen(5); // Desktop: Show 5 messages
-      } else {
-        setMaxMessagesOnScreen(3); // Mobile: Show 3 messages
-      }
-    };
-
-    updateMessageLimit();
-    window.addEventListener("resize", updateMessageLimit);
-    return () => window.removeEventListener("resize", updateMessageLimit);
-  }, []);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
-    const fetchMessages = async () => {
-      try {
-        const response = await fetch("/api/messages");
-        if (!response.ok) throw new Error("Failed to fetch messages");
-        const data = await response.json();
-        setMessages(data);
+    let storedSessionId = localStorage.getItem("sessionId");
+    if (!storedSessionId) {
+      storedSessionId = uuidv4();
+      localStorage.setItem("sessionId", storedSessionId);
+    }
+    setSessionId(storedSessionId);
 
-        setMessageSettings((prevSettings) => {
-          const newSettings = { ...prevSettings };
-          const usedPositions: number[] = [];
+    fetchAllMessages();
 
-          data.forEach((msg: Message) => {
-            if (!newSettings[msg.id]) {
-              let uniqueTop = generateUniqueTop(usedPositions);
-              usedPositions.push(uniqueTop);
-              newSettings[msg.id] = {
-                speed: Math.random() * 10 + 30,
-                top: uniqueTop,
-              };
-            }
-          });
-
-          return newSettings;
-        });
-
-        setActiveMessages(data.slice(0, maxMessagesOnScreen));
-      } catch (error) {
-        console.error("Error fetching messages:", error);
-      }
-    };
-
-    fetchMessages();
-
-    const eventSource = new EventSource("/api/messages/subscribe");
-
+    const eventSource = new EventSource("/api/subscribe");
     eventSource.onmessage = (event) => {
       try {
         const newMessage = JSON.parse(event.data);
-        setMessages((prevMessages) => {
-          const updatedMessages = [newMessage, ...prevMessages];
-
-          if (activeMessages.length < maxMessagesOnScreen) {
-            setActiveMessages((prevActive) => [...prevActive, newMessage]);
-          }
-
-          return updatedMessages;
-        });
-
-        setMessageSettings((prevSettings) => {
-          const usedPositions = Object.values(prevSettings).map((s) => s.top);
-          return {
-            ...prevSettings,
-            [newMessage.id]: {
-              speed: Math.random() * 10 + 30,
-              top: generateUniqueTop(usedPositions),
-            },
-          };
-        });
+        setMessages((prevMessages) => [...prevMessages, newMessage]);
       } catch (error) {
         console.error("Error parsing message:", error);
       }
     };
 
-    eventSource.onerror = (error) => {
-      console.error("EventSource failed:", error);
-      eventSource.close();
-    };
-
+    eventSource.onerror = () => eventSource.close();
     return () => {
       eventSource.close();
     };
-  }, [maxMessagesOnScreen]);
+  }, []);
 
-  // Rotate messages every 20 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveMessages((prevActive) => {
-        if (messages.length === 0) return prevActive;
-
-        const remainingMessages = messages.filter((msg) => !prevActive.includes(msg));
-        if (remainingMessages.length === 0) return prevActive;
-
-        return [...prevActive.slice(1), remainingMessages[0]];
-      });
-    }, 20000);
-
-    return () => clearInterval(interval);
-  }, [messages, maxMessagesOnScreen]);
-
-  const generateUniqueTop = (existingPositions: number[]) => {
-    const minTop = 20;
-    const maxTop = 70;
-    let top: number;
-    let attempts = 0;
-
-    do {
-      top = Math.floor(Math.random() * (maxTop - minTop) + minTop);
-      let isTooClose = existingPositions.some((pos) => Math.abs(pos - top) < messageHeight);
-      if (!isTooClose || attempts > 50) break;
-      attempts++;
-    } while (true);
-
-    return top;
+  const fetchAllMessages = async () => {
+    try {
+      const response = await fetch(`/api/messages`);
+      if (!response.ok) throw new Error("Failed to fetch messages");
+      const data = await response.json();
+      setMessages(data);
+      setFilteredMessages(data);
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+    }
   };
 
-  if (!messages.length) {
-    return <p className="h-screen text-center mx-auto my-auto mt-48 text-gray-500 dark:text-gray-400">Send your first message!</p>;
-  }
+  // Search Filter
+  useEffect(() => {
+    const filtered = messages.filter((msg) =>
+      msg.recipient.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    setFilteredMessages(filtered);
+  }, [searchQuery, messages]);
+
+  const handleOpenMessage = async (msg: Message) => {
+    setSelectedMessage(msg);
+
+    await fetch("/api/messages", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: msg.id }),
+    });
+
+    setMessages((prevMessages) =>
+      prevMessages.map((m) => (m.id === msg.id ? { ...m, viewerCount: (m.viewerCount || 0) + 1 } : m))
+    );
+  };
 
   return (
     <>
-      <div className="overflow-hidden relative h-screen">
-        {activeMessages.map((msg, index) => {
-          const settings = messageSettings[msg.id] || { speed: 50, top: 50 };
+      {/* Background Decorations */}
+      <div className="background">
+        {/* Floating Clouds */}
+        <motion.div className="cloud cloud-1" animate={{ x: [0, 20, 0] }} transition={{ duration: 15, repeat: Infinity }} />
+        <motion.div className="cloud cloud-2" animate={{ x: [0, -30, 0] }} transition={{ duration: 20, repeat: Infinity }} />
+        <motion.div className="cloud cloud-3" animate={{ x: [0, 25, 0] }} transition={{ duration: 18, repeat: Infinity }} />
 
-          return (
-            <motion.div
-              key={msg.id}
-              className="envelope"
-              style={{ top: `${settings.top}%` }}
-              initial={{ x: "100vw", opacity: 1 }}
-              animate={{ x: "-120vw" }}
-              transition={{
-                duration: settings.speed,
-                ease: "linear",
-                onComplete: () => {
-                  setActiveMessages((prevActive) =>
-                    prevActive.filter((activeMsg) => activeMsg.id !== msg.id)
-                  );
-
-                  setMessages((prevMessages) => {
-                    const remainingMessages = prevMessages.filter((m) => m.id !== msg.id);
-                    if (remainingMessages.length > 0) {
-                      return [...remainingMessages, prevMessages.find((m) => m.id === msg.id)!];
-                    }
-                    return remainingMessages;
-                  });
-                },
-              }}
-              onClick={() => setSelectedMessage(msg)}
-            >
-              <div className="envelope-flap"></div>
-              <div className="envelope-body top-3">to: {msg.recipient}</div>
-            </motion.div>
-          );
-        })}
+        {/* Floating Hearts */}
+        {[...Array(5)].map((_, index) => (
+          <motion.div
+            key={index}
+            className="heart"
+            initial={{ y: "100vh", opacity: 0 }}
+            animate={{ y: "-10vh", opacity: 1 }}
+            transition={{ duration: Math.random() * 5 + 5, repeat: Infinity }}
+            style={{ left: `${Math.random() * 90}%` }}
+          />
+        ))}
       </div>
 
-      {/* Dialog to show message details */}
-      {selectedMessage && (
-        <Dialog open={!!selectedMessage} onOpenChange={() => setSelectedMessage(null)}>
-          <DialogContent className="h-3/4 md:max-w-lg md:h-auto md:mx-auto">
-            <DialogHeader>
-              <DialogTitle>Message to {selectedMessage.recipient}</DialogTitle>
-            </DialogHeader>
-            <p className="text-gray-600 dark:text-gray-300">{selectedMessage.message}</p>
-            {selectedMessage.image && (
-              <div className="mt-2">
-                <img src={selectedMessage.image} alt="Attachment" className="rounded-lg w-full object-cover" />
+      {/* Search Bar */}
+      <div className="p-4 flex justify-center items-center gap-2">
+        <Input
+          type="text"
+          placeholder="ลองค้นหาชื่อของคุณดูสิ"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full md:w-1/2 p-2 border border-gray-300 rounded-lg"
+        />
+        <Button variant="outline">
+          <Search className="w-5 h-5" />
+        </Button>
+      </div>
+
+      {/* Envelopes Grid */}
+      <div className="p-2 flex flex-wrap gap-6 justify-center md:w-3/4 md:mx-auto">
+        {filteredMessages.length > 0 ? (
+          filteredMessages.map((msg) => (
+            <motion.div
+              key={msg.id}
+              className="envelope cursor-pointer"
+              onClick={() => handleOpenMessage(msg)}
+              whileHover={{ y: -5, scale: 1.05 }} 
+              transition={{ duration: 0.3 }}
+            >
+              <div className="paper bg-white rounded-lg items-start relative">
+                <p className="absolute top-0 font-semibold text-sm text-black text-ellipsis p-2">To: {msg.recipient}</p>
               </div>
-            )}
-          </DialogContent>
-        </Dialog>
-      )}
+              <div className="envelope-body flex flex-col items-center justify-center p-2">
+                <div className="flex items-center gap-1 text-xs text-white mt-1">
+                  <MailOpen className="w-3 h-3" />
+                  {msg.viewerCount ?? 0} views
+                </div>
+              </div>
+              <div className="envelope-flap"></div>
+            </motion.div>
+          ))
+        ) : (
+          <p className="text-center text-white">ดูเหมือนว่าไม่มีข้อความที่คุณกำลังค้นหา</p>
+        )}
+      </div>
     </>
   );
 }
