@@ -1,0 +1,40 @@
+.envelope {
+    position: absolute;
+    background: #e63946; /* Red envelope color */
+    width: 120px;
+    height: 80px;
+    text-align: center;
+    border-radius: 5px;
+    box-shadow: 2px 4px 10px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    cursor: pointer;
+    display: flex;
+    align-items: flex-end; /* Align content to bottom */
+    justify-content: center;
+}
+
+.envelope-body {
+    width: 100%;
+    height: 100%;
+    background: #e63946; /* Same as envelope */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: white;
+    font-weight: bold;
+    z-index: 2; /* Ensures text stays visible */
+    position: relative;
+}
+
+/* Closed Envelope Flap */
+.envelope-flap {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 50%; /* Cover half the envelope */
+    background: #c53030; /* Darker red for contrast */
+    clip-path: polygon(0 0, 100% 0, 50% 100%); /* Triangle effect */
+    z-index: 3; /* Place it above the body */
+}
