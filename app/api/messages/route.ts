@@ -29,7 +29,7 @@ async function screenMessage(message: string) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: MODEL,
-        prompt: `Analyze this message for profanity, hate speech, or sexual harassment in Thai, Romanized Thai, or English. Reject messages with explicit references to body parts, sexual acts, or inappropriate advances. Allow respectful compliments. Respond with 'approved' or 'rejected'. Message: '${message}'`,
+        prompt: `Analyze this message for profanity, hate speech, or sexual harassment in Thai, Romanized Thai, or English. Reject messages with explicit references to body parts, sexual acts, or inappropriate advances. Respond with 'approved' or 'rejected'. Message: '${message}'`,
         stream: false,
       }),
     });
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
     let sessionId = formData.get("sessionId")?.toString();
 
     if (!recipient || !message) {
-      return NextResponse.json({ error: "Recipient and message required" }, { status: 400 });
+      return NextResponse.json({ error: "กรุณากรอกชื่อผู้รับ และข้อความที่ต้องการส่ง" }, { status: 400 });
     }
 
     if (!sessionId) {
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
 
     const isApproved = await screenMessage(message);
     if (!isApproved) {
-      return NextResponse.json({ error: "Message contains inappropriate content" }, { status: 400 });
+      return NextResponse.json({ error: "ข้อความของคุณอาจมีเนื้อหาที่ไม่เหมาะสม กรุณาปรับปรุงเนื้อหาและลองใหม่อีกครั้ง" }, { status: 400 });
     }
 
     // Store message in MongoDB

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { MessageList } from "@/components/message-list";
 import { SendMessageDrawer } from "@/components/message-dialog";
+import Iridescence from '@/components/ui/Iridescence';
 
 const messages = [
   "Share your heartfelt messages with someone special",
@@ -44,7 +45,6 @@ export default function Home() {
     };
 
     const typingInterval = setTimeout(handleTyping, isDeleting ? 50 : 100);
-
     return () => clearTimeout(typingInterval);
   }, [charIndex, isDeleting, index]);
 
@@ -74,12 +74,21 @@ export default function Home() {
     };
   }, [emoji]);
 
+  /** 🛠️ Memoized Iridescence to prevent re-rendering */
+  const MemoizedIridescence = useMemo(() => (
+    <div className="absolute inset-0 pointer-events-none w-screen h-screen">
+      <Iridescence color={[0.9, 0.9, 0.9]} mouseReact={false} amplitude={0.1} speed={0.1} />
+    </div>
+  ), []);
+
   return (
-    <main className="relative h-full w-full mb-32 md:mb-4 overflow-hidden bg-gradient-to-b from-[#ff69b498] to-white dark:from-gray-900 dark:to-gray-800">
-      <div className="mx-auto">
-        <div className="text-center mt-12">
-          <h1 className="text-4xl font-bold text-white mb-4 flex items-center justify-center gap-2">
-            Say 4 Me{" "}
+    <main className="relative">
+      {MemoizedIridescence}
+      
+      <div className="relative z-20 mx-auto">
+        <div className="text-center">
+          <h1 className="text-4xl font-bold text-white mb-4 pt-12 flex items-center justify-center gap-2">
+            KindWords{" "}
             <motion.span
               key={emoji}
               className="inline-block"
@@ -101,8 +110,8 @@ export default function Home() {
             {displayText}
           </motion.p>
         </div>
-          <MessageList />
-          <SendMessageDrawer />
+        <MessageList />
+        <SendMessageDrawer />
       </div>
     </main>
   );

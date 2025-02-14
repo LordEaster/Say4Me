@@ -1,21 +1,29 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { 
-  Loader2,
-  Send
+  Loader2
 } from "lucide-react";
+
+const buttonTexts = [
+  "ส่งความในใจ 💌",
+  "แชร์ความรู้สึก ❤️",
+  "ส่งให้คนสำคัญ 💖",
+  "บอกสิ่งที่อยากบอก 💬",
+  "ส่งข้อความพิเศษ ✨",
+];
 
 export function SendMessageDrawer() {
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({ recipient: "", message: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [buttonText, setButtonText] = useState(buttonTexts[0]); // Default text
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,23 +54,34 @@ export function SendMessageDrawer() {
     }
   };
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const randomIndex = Math.floor(Math.random() * buttonTexts.length);
+      setButtonText(buttonTexts[randomIndex]);
+    }, 10000); 
+
+    return () => clearInterval(interval); // Cleanup on unmount
+  }, []);
+
   return (
     <Drawer open={open} onOpenChange={setOpen}>
           <DrawerTrigger asChild>
             <motion.div
+              key={buttonText}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 100, damping: 10 }}
+              animate={{ scale: 1 }}
               className="fixed bottom-4 md:bottom-10 right-4 md:right-10 z-10"
             >
               <Button className="bg-white hover:bg-[#E63946] text-[#FF69B4] hover:text-white rounded-full text-lg font-semibold shadow-lg">
-                <Send className="w-6 h-6 mr-2" />
-                Send Message
+                {buttonText}
               </Button>
           </motion.div>
           </DrawerTrigger>
         <DrawerContent>
           <DrawerHeader>
-            <DrawerTitle>Send Your Message</DrawerTitle>
+            <DrawerTitle>{buttonText}</DrawerTitle>
           </DrawerHeader>
 
           <div className="p-4 mb-6">
@@ -81,18 +100,18 @@ export function SendMessageDrawer() {
                   placeholder="อยากบอกอะไร (Message)"
                   value={formData.message}
                   onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                  className="w-full h-32"
-                  maxLength={100}
+                  className="w-full h-48"
+                  maxLength={400}
                 />
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{
                     opacity: 1,
-                    color: formData.message.length > 80 ? "#ef4444" : "#6b7280",
+                    color: formData.message.length > 360 ? "#ef4444" : "#6b7280",
                   }}
                   className="text-sm mt-1"
                 >
-                  {formData.message.length}/100 characters
+                  {formData.message.length}/400 characters
                 </motion.div>
               </motion.div>
 

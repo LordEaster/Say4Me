@@ -57,6 +57,18 @@
     z-index: 0; /* Ensure it doesn't overlap the paper */
 }
 
+.memo-bg {
+    background: repeating-linear-gradient(
+      to bottom,
+      #f5f0db, /* Light yellow background */
+      #fdf5d9 25px,
+      #dab995 26px /* Orange lines for memo effect */
+    );
+    line-height: 25px; /* Space out text properly between lines */
+    padding-left: 20px; /* Simulate margin of a memo page */
+}
+
+
 .background {
     position: absolute;
     top: 0;
